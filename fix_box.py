@@ -32,11 +32,7 @@ def smt_errs(annotations='../predict_errors/error_annotation.csv'):
 
     smt_err['w_binary'] = smt_err.w_total.apply(lambda x: 1 if x != 0
                                                 else 0)
-    # smt_err['w_categorial'] = ['I' if w_inc else 'M' if w_mis
-    #                            else 'O' if w_ord else 'U' if w_unk
-    #                            else '' for _, (w_inc, w_mis, w_ord, w_unk) in
-    #                            smt_err[['w_incorr', 'w_missing',
-    #                                    'w_order', 'w_unk']].iterrows()]
+
     smt_err['w_cat'] = smt_err.apply(lambda x: 'I' if x.w_incorr
                                      else 'M' if x.w_missing
                                      else 'O' if x.w_order
@@ -48,8 +44,9 @@ def smt_errs(annotations='../predict_errors/error_annotation.csv'):
 def smt_boxes(box_path='../logic_reading/experiment_copy/stimuli/'):
     """hacky helper function to pick out relevant files only"""
     smt_files = [box_path + i for i in os.listdir(box_path)
-                 if ('.tsv' in i) and ('DA' in i)
-                 and (('Infe' in i) or ('Conc' in i))
+                 if ('.tsv' in i)
+                 # and ('DA' in i)
+                 # and (('Infe' in i) or ('Conc' in i))
                  and ('.question' not in i)]
     return smt_files
 
@@ -64,24 +61,11 @@ def boxing(tsv_path):
     frame['w_id'] = frame['id'].apply(lambda x: int(x.split('-')[0]))
     grouper = frame.groupby('w_id')
 
-    # keep the relevant columns, including corners of the word
-    # newframe = pd.DataFrame()
-    # newframe['q_id'] = grouper.q_id.first()
-    # newframe['w_id'] = grouper.w_id.first()
-    # newframe['w_form'] = grouper.text.sum()
-    # newframe['w_len'] = grouper.w_id.count()
-    # newframe['w_position'] = newframe.w_id.apply(lambda x:
-    #   round(x/(newframe.w_id.max()*1.0),2)*100)
-    # newframe['left'] = grouper.left.min()
-    # newframe['right'] = grouper.right.max()
-    # newframe['top'] = grouper.top.first()
-    # newframe['bottom'] = grouper.bottom.first()
-
     # build new frame with one row per grouped item using aggregate
     boxes = grouper.agg({'q_id': lambda x: x.iloc[0],
                          'w_id': lambda x: x.iloc[0],
                          'text': lambda x: x.sum(),
-                         #'w_len': lambda x: x.count(),
+                         # 'w_len': lambda x: x.count(),
                          'left': lambda x: x.min(),
                          'right': lambda x: x.max(),
                          'top': lambda x: x.iloc[0],
@@ -102,20 +86,22 @@ def boxset(box_files=smt_boxes(),
     annot_boxes = pd.concat([boxed, annotations], 1)
     return annot_boxes
 
+
 # Annotate one fixation with according box
 def boxer(fix_row, annot='w_cat', boxframe=boxset()):
     """Return the word id, the text and the annotation
     that a fixation landed on, if any."""
     # retrieve relevant info about fixation
     fname = fix_row.filename
+
     x = fix_row.FixationPointX_MCSpx
     y = fix_row.FixationPointY_MCSpx
-
     # get the token-id covering the fixation
     f_box = boxframe[boxframe.q_id == fname]
-    # lookout: y is centered at top corner.
-    criterium = ((f_box.left < x) & (x < f_box.right)
-                 & ((f_box.top < y) & (y < f_box.bottom)))
+
+    # lookout: y is centered at top corner. - make floats to compare to NaNs
+    criterium = ((f_box.left*1. < x) & (x < f_box.right*1.)
+                 & ((f_box.top*1. < y) & (y < f_box.bottom*1.)))
     box = f_box[criterium]
     # check if there are any hits
     if box.text.count() > 0:
@@ -133,17 +119,11 @@ def drop_smt_stuff(df, boxes=boxset()):
     # only reading
     df = df[df.Screen == 'compr']
 
-    # TODO: solve including English readings and all question types!
-    # only translated stuff, because thats where the errors are
-    # df = df[df.Manipulation.isin(['DAsmt', 'DAsimsmt', 'DAhuman'])]
-    # discriminate question types (why?)
-    # df = df[df.QuestionName.contains('Infe|Conc')]
-
     # include only rows classified as fixations
     df = df[df.FixationIndex.notnull()]
     cols = ['MediaName', 'ParticipantName', 'FixationIndex']
     durations = df.groupby(cols).apply(fix_durs)
-    df.drop_duplicates(cols)
+    df = df.drop_duplicates(cols)
     durations.name = 'duration'
     new_df = df.join(durations, on=cols, rsuffix='_new')
     # new_df.drop('duration_new', axis=1)
@@ -158,21 +138,4 @@ def drop_smt_stuff(df, boxes=boxset()):
     new_df.loc[:, "text"] = new_df.dummy.apply(lambda x: x[1])
     new_df.loc[:, "annotated"] = new_df.dummy.apply(lambda x: x[2])
 
-    # TODO: build a new frame similar to MF_fix_box_ALL
-
     return new_df
-
-
-# def fix_framer(df, filenamer):
-#     pass
-
-# # remove unnecessary columns
-# pre_data = pre_data[[u'ParticipantName', u'RecordingName',
-#                      u'RecordingTimestamp', u'FixationIndex',
-#                      u'SaccadeIndex', u'GazeEventDuration',
-#                      u'FixationPointX_MCSpx', u'FixationPointY_MCSpx',
-#                      u'QuestionName', u'Manipulation']]
-
-# # save data to file
-# pre_data.to_csv(args.outputpath, sep='\t', index=False,
-#                 header=True, encoding='utf-8')
