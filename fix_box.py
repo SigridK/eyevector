@@ -22,9 +22,10 @@ def smt_errs(annotations='../predict_errors/error_annotation.csv'):
     smt_err = pd.read_csv(annotations,
                           sep=';',
                           index_col=0,
-                          usecols=[0, 4, 5, 6, 7],
+                          usecols=[0, 1, 2, 4, 5, 6, 7],
                           header=0,
-                          names=['aoi_index', 'w_missing',
+                          names=['aoi_index', 'q_id', 
+                                 'w_id', 'w_missing',
                                  'w_order', 'w_incorr', 'w_unk'])
     smt_err = smt_err.fillna(0)
     smt_err['w_total'] = (smt_err.w_missing + smt_err.w_order +
@@ -33,11 +34,11 @@ def smt_errs(annotations='../predict_errors/error_annotation.csv'):
     smt_err['w_binary'] = smt_err.w_total.apply(lambda x: 1 if x != 0
                                                 else 0)
 
-    smt_err['w_cat'] = smt_err.apply(lambda x: 'I' if x.w_incorr
-                                     else 'M' if x.w_missing
-                                     else 'O' if x.w_order
-                                     else 'U' if x.w_unk
-                                     else '', axis=1)
+    smt_err['w_cat'] = smt_err.apply(lambda x: 'Incorrect' if x.w_incorr
+                                     else 'Missing' if x.w_missing
+                                     else 'Order' if x.w_order
+                                     else 'Unknown' if x.w_unk
+                                     else 'Ok', axis=1)
     return smt_err
 
 
@@ -83,7 +84,9 @@ def boxset(box_files=smt_boxes(),
     boxed = boxed.reset_index(drop=True)
 
     # TODO do something with annotations here...
-    annot_boxes = pd.concat([boxed, annotations], 1)
+    # annot_boxes = pd.concat([boxed, annotations], 1)
+    annot_boxes = pd.merge(boxed, annotations,
+                           how='outer', on=['w_id', 'q_id'])
     return annot_boxes
 
 
@@ -107,10 +110,10 @@ def boxer(fix_row, annot='w_cat', boxframe=boxset()):
     if box.text.count() > 0:
         box_token = box.w_id.values[0]
         word = box.text.values[0]
-        annot = box[annot].values[0]
-        result = (box_token, word, annot)
+        label = box[annot].values[0]
+        result = (box_token, word, label)
     else:
-        result = (None, None, None)
+        result = ('NA', 'NA', 'NA')
 
     return result
 

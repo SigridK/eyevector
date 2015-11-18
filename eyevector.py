@@ -393,19 +393,14 @@ def importance_weight(label='a0c0t0p0', fnum=1, i='', maj_cost=.1, a2cost=1):
     if float(fnum) == 0:
         weight = 0.
 
-    # elif label and i.startswith('a2'):
-    #    weight = a2cost
-
-    # else:
-    #    weight = 1.
     else:
         weight = 1/(float(fnum))
 
     if label == 0:
         weight = maj_cost*weight
 
-    # elif str(label).startswith('a2'):
-    #    weight = a2cost*weight
+    elif str(label).startswith('a2'):
+        weight = a2cost*weight
 
     return str(weight)
 
@@ -502,12 +497,15 @@ def data_split2(df_list,
     splits a list of dataframes into train, dev and test set.
     """
 
-    print('test part will be:', 1-sum(sizes))
     df_size = len(df_list[0])
 
+    # set the sizes (test set will get the rest.)
+    print('test part will be:', 1-sum(sizes))
     train_size = round(df_size*sizes[0])
     dev_size = round(df_size*sizes[1])
 
+    # FIX ME! should not shuffle randomly, but by text, participant,
+    # and chunck-size too...
     np.random.seed(1)
     shuffled_seq = np.random.permutation(df_size)
 
@@ -515,6 +513,7 @@ def data_split2(df_list,
     dev_set = shuffled_seq[train_size:train_size+dev_size]
     test_set = shuffled_seq[train_size+dev_size:]
 
+    # pick-out the relevant dataset for train, dev and test
     to_rungsted_learn, labels = rung_former2([df_list[0].iloc[train_set],
                                              df_list[1].iloc[train_set]],
                                              text_window=text_window,
@@ -531,15 +530,19 @@ def data_split2(df_list,
                                                  fill_vals=fill_vals,
                                                  fix_range=fix_range)
 
+    # handle problem with colon as special character
     to_rungsted_learn = to_rungsted_learn.replace(':', '[..]')
     to_rungsted_dev = to_rungsted_dev.replace(':', '[..]')
     to_rungsted_test = to_rungsted_test.replace(':', '[..]')
 
+    # inspect that sizes are reasonable
     print('size of train, dev and test:',
           len(train_set), len(dev_set), len(test_set))
     print('labelsets:\n{}\n{}\n{}'.format(labels, dev_labels, test_labels))
 
-    return to_rungsted_learn, to_rungsted_dev, to_rungsted_test, labels, dev_labels, test_labels
+    # data and label sets
+    return (to_rungsted_learn, to_rungsted_dev, to_rungsted_test,
+            labels, dev_labels, test_labels)
 
 
 def displayer(fixID,
